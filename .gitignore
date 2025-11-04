@@ -1,0 +1,22 @@
+# Dossiers de configuration IDE
+.vscode/
+.idea/
+
+# Dossier de compilation
+build/
+
+# Fichiers exécutables
+*.exe
+*.out
+*.o
+*.obj
+
+# Fichiers temporaires
+*.swp
+*.swo
+*~
+
+# Fichiers de système
+.DS_Store
+Thumbs.db
+
