@@ -8,10 +8,19 @@ if (-not (Test-Path "build")) {
 
 # Compiler l'exécutable dans le dossier build
 Write-Host "Compilation en cours..." -ForegroundColor Cyan
-gcc -Isrc .\src\main.c .\src\args_parser.c .\src\console.c -o .\build\game.exe
+gcc -Isrc .\src\main.c .\src\args_parser.c .\src\file.c -o .\build\game.exe
 
 if ($LASTEXITCODE -eq 0) {
     Write-Host "Compilation réussie ! Exécutable créé: build\game.exe" -ForegroundColor Green
+    
+    # Copier le dossier config dans build s'il existe
+    if (Test-Path "src\config") {
+        if (-not (Test-Path "build\config")) {
+            New-Item -ItemType Directory -Path "build\config" | Out-Null
+        }
+        Copy-Item -Path "src\config\*" -Destination "build\config\" -Force -Recurse
+        Write-Host "Dossier config copié dans build\" -ForegroundColor Yellow
+    }
     
     # Copier les fichiers d'entrée potentiels dans build s'ils existent
     $inputFiles = @("glider.txt", "*.txt")
