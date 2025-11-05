@@ -1,18 +1,42 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <string.h>
+#include <stdlib.h>
 
 #ifdef _WIN32
     #include <windows.h>
+    #include <conio.h>
     #define msleep(milliseconds) Sleep(milliseconds)
+    #define CLEAR_SCREEN() system("cls")
+    #define KBHIT() _kbhit()
+    #define GETCH() _getch()
 
 #else
     #include <unistd.h>
+    #include <termios.h>
+    #include <fcntl.h>
+    #include <sys/select.h>
     #define msleep(milliseconds) usleep(milliseconds * 1000)
+    #define CLEAR_SCREEN() system("clear")
+    
+    // Fonction pour vérifier si une touche est pressée (non-bloquante)
+    static int kbhit_linux(void) {
+        struct timeval tv;
+        fd_set rdfs;
+        tv.tv_sec = 0;
+        tv.tv_usec = 0;
+        FD_ZERO(&rdfs);
+        FD_SET(STDIN_FILENO, &rdfs);
+        select(STDIN_FILENO + 1, &rdfs, NULL, NULL, &tv);
+        return FD_ISSET(STDIN_FILENO, &rdfs);
+    }
+    #define KBHIT() kbhit_linux()
+    #define GETCH() getchar()
 #endif
 
 #include "args_parser.h"
 #include "file.h"
+#include "game.h"
 
 #ifdef _WIN32
 // Fonction pour obtenir le répertoire de l'exécutable sur Windows
@@ -35,9 +59,6 @@ int main(int argc, char *argv[]) {
     GameParams params;
     parse_args(argc, argv, &params);
     print_params(&params);
-
-    uint64_t test = 10;
-    printf("%llu\n", test);
 
     // lecture fichier glider.txt
     printf("lecture fichier glider.txt\n");
@@ -107,12 +128,117 @@ int main(int argc, char *argv[]) {
     // fin affichage de la grille
     printf("Fin affichage de la grille\n");
     
-    free_bitgrid(grid);
     // fin lecture fichier glider.txt
 
-    // fermeture du programme
-    printf("\nAppuyez sur Entrée pour fermer...\n");
-    // Attendre une entrée utilisateur pour que la console reste ouverte
+    // Créer le jeu avec les dimensions des paramètres
+    GameOfLife *game = create_game(params.width, params.height);
+    if (game == NULL) {
+        fprintf(stderr, "Erreur: Impossible de créer le jeu\n");
+        free_bitgrid(grid);
+        return 1;
+    }
+    
+    // Charger le pattern au centre de la grille
+    int offset_x = (params.width - grid->width) / 2;
+    int offset_y = (params.height - grid->height) / 2;
+    load_pattern(game, grid, offset_x, offset_y);
+    
+    free_bitgrid(grid);
+    
+    // Boucle interactive
+    printf("\nAppuyez sur Entrée pour commencer la simulation...\n");
     getchar();
+    
+    // Choisir le mode de bordure
+    CLEAR_SCREEN();
+    printf("=== Choix du mode de bordure ===\n");
+    printf("1. Edge (mort en dehors)\n");
+    printf("2. Toroidal (périodique)\n");
+    printf("3. Mirror (miroir)\n");
+    printf("4. Alive rim (vivant en dehors)\n");
+    printf("\nChoisissez un mode (1-4): ");
+    
+    int choice = 0;
+    if (scanf("%d", &choice) != 1 || choice < 1 || choice > 4) {
+        choice = 1; // Par défaut
+    }
+    getchar(); // Consommer le \n
+    
+    BoundaryMode boundary_mode = (BoundaryMode)(choice - 1);
+    set_boundary_mode(game, boundary_mode);
+    
+    const char *mode_names[] = {"Edge", "Toroidal", "Mirror", "Alive rim"};
+    printf("Mode sélectionné: %s\n", mode_names[boundary_mode]);
+    printf("\nAppuyez sur Entrée pour continuer...\n");
+    getchar();
+    
+    // Boucle principale de simulation
+    int running = 0; // 0 = arrêté, 1 = en cours
+    int generation = 0;
+    
+#ifdef _WIN32
+    // Configurer la console pour la lecture non-bloquante
+    HANDLE hStdin = GetStdHandle(STD_INPUT_HANDLE);
+    DWORD console_mode;
+    GetConsoleMode(hStdin, &console_mode);
+    SetConsoleMode(hStdin, console_mode & ~(ENABLE_LINE_INPUT | ENABLE_ECHO_INPUT));
+#endif
+    
+    while (1) {
+        CLEAR_SCREEN();
+        
+        printf("=== Game of Life ===\n");
+        printf("Génération: %d\n", generation);
+        printf("Mode bordure: %s\n", mode_names[boundary_mode]);
+        printf("État: %s\n", running ? "EN COURS" : "ARRÊTÉ");
+        printf("\n");
+        
+        display_grid(game);
+        
+        printf("\n");
+        printf("=== Contrôles ===\n");
+        printf("[L] Lancer la simulation\n");
+        printf("[A] Arrêter la simulation\n");
+        printf("[M] Mesurer les performances (1000 générations)\n");
+        printf("[Q] Quitter\n");
+        
+        if (running) {
+            next_generation(game);
+            generation++;
+            msleep(100); // Délai pour visualisation (10 FPS)
+        }
+        
+        // Vérifier l'entrée clavier
+        if (KBHIT()) {
+            char key = GETCH();
+            key = (key >= 'a' && key <= 'z') ? key - 32 : key; // Convertir en majuscule
+            
+            if (key == 'L') {
+                running = 1;
+            } else if (key == 'A') {
+                running = 0;
+            } else if (key == 'M') {
+                running = 0;
+                CLEAR_SCREEN();
+                measure_performance(game, 1000);
+                printf("\nAppuyez sur Entrée pour continuer...\n");
+                getchar();
+            } else if (key == 'Q') {
+                break;
+            }
+        }
+        
+        // Si arrêté, attendre un peu pour ne pas surcharger le CPU
+        if (!running) {
+            msleep(50);
+        }
+    }
+    
+#ifdef _WIN32
+    // Restaurer le mode de la console
+    SetConsoleMode(hStdin, console_mode);
+#endif
+    
+    free_game(game);
     return 0;
 }

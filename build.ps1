@@ -8,7 +8,7 @@ if (-not (Test-Path "build")) {
 
 # Compiler l'exécutable dans le dossier build
 Write-Host "Compilation en cours..." -ForegroundColor Cyan
-gcc -Isrc .\src\main.c .\src\args_parser.c .\src\file.c -o .\build\game.exe
+gcc -Isrc .\src\main.c .\src\args_parser.c .\src\file.c .\src\game.c -o .\build\game.exe
 
 if ($LASTEXITCODE -eq 0) {
     Write-Host "Compilation réussie ! Exécutable créé: build\game.exe" -ForegroundColor Green
