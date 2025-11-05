@@ -223,6 +223,7 @@ int main(int argc, char *argv[]) {
                 measure_performance(game, 1000);
                 printf("\nAppuyez sur Entrée pour continuer...\n");
                 getchar();
+                msleep(10000);
             } else if (key == 'Q') {
                 break;
             }
@@ -230,7 +231,7 @@ int main(int argc, char *argv[]) {
         
         // Si arrêté, attendre un peu pour ne pas surcharger le CPU
         if (!running) {
-            msleep(50);
+            msleep(100);
         }
     }
     
